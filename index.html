@@ -61,6 +61,18 @@
   }
   .reset-btn:active { background: var(--line-soft); }
 
+  .edit-btn {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    color: var(--ink-soft);
+    font-family: inherit;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 6px 8px;
+    border-radius: 6px;
+  }
+  .edit-btn:active { background: var(--line-soft); }
+
   section { margin-bottom: 30px; }
 
   .section-title { font-size: 0.95rem; font-weight: 600; margin: 0 0 3px; }
@@ -190,11 +202,31 @@
 
   <section>
     <p class="section-title">Office</p>
-    <p class="section-sub">Visit counts — not included in RVU total</p>
+    <p class="section-sub">Visit counts &times; RVU = office total</p>
     <table>
-      <thead><tr><th>Name</th><th class="num">Count</th></tr></thead>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th class="num">RVU</th>
+          <th class="num">Count</th>
+          <th class="num">Total</th>
+          <th class="num">Edit</th>
+        </tr>
+      </thead>
       <tbody id="office-body"></tbody>
+      <tfoot>
+        <tr>
+          <td colspan="3" style="text-align:right; font-weight:600;">Today&rsquo;s office total</td>
+          <td class="total" id="office-total">0.00</td>
+          <td></td>
+        </tr>
+      </tfoot>
     </table>
+    <div class="add-row" style="margin-top:12px; display:flex; gap:8px; align-items:center;">
+      <input id="new-office-name" type="text" placeholder="Office item" style="flex:1; font:inherit; padding:10px 12px; border:1px solid var(--line); border-radius:7px; background:var(--surface);">
+      <input id="new-office-rvu" type="number" min="0" step="0.01" placeholder="RVU" style="width:84px; font:inherit; padding:10px 8px; border:1px solid var(--line); border-radius:7px; background:var(--surface);">
+      <button id="add-office-btn" class="reset-btn" type="button">Add</button>
+    </div>
   </section>
 
   <section>
@@ -207,6 +239,7 @@
           <th class="num">RVU</th>
           <th class="num">Count</th>
           <th class="num">Total</th>
+          <th class="num">Edit</th>
         </tr>
       </thead>
       <tbody id="proc-body"></tbody>
@@ -214,10 +247,16 @@
         <tr>
           <td colspan="3" style="text-align:right; font-weight:600;">Grand total</td>
           <td class="total" id="table-grand-total">0.00</td>
+          <td></td>
         </tr>
       </tfoot>
     </table>
-    <button class="reset-btn" id="reset-btn">Clear all entries</button>
+    <div class="add-row" style="margin-top:12px; display:flex; gap:8px; align-items:center;">
+      <input id="new-proc-name" type="text" placeholder="Procedure name" style="flex:1; font:inherit; padding:10px 12px; border:1px solid var(--line); border-radius:7px; background:var(--surface);">
+      <input id="new-proc-rvu" type="number" min="0" step="0.01" placeholder="RVU" style="width:84px; font:inherit; padding:10px 8px; border:1px solid var(--line); border-radius:7px; background:var(--surface);">
+      <button id="add-proc-btn" class="reset-btn" type="button">Add</button>
+    </div>
+    <button class="reset-btn" id="reset-btn" style="margin-top:12px;">Clear all entries</button>
   </section>
 
   <section id="monthly-section">
@@ -239,58 +278,171 @@
 
 <script>
   const STORAGE_KEY = 'rvuTrackerHistory';
+  const CUSTOM_ITEMS_KEY = 'rvuTrackerCustomItems';
   let history = [];
 
-  const officeRows = [
-    "New level 4",
-    "Return level 4",
-    "Pessary fitting",
-    "Pelvic exam"
+  const DEFAULT_OFFICE_ROWS = [
+    { name: 'New level 4', rvu: 0 },
+    { name: 'Return level 4', rvu: 0 },
+    { name: 'Pessary fitting', rvu: 0.87 },
+    { name: 'Pelvic exam', rvu: 0 }
   ];
 
-  const procRows = [
-    ["Pessary fitting", 0.87],
-    ["Urod.", 4.13],
-    ["Cysto", 1.49],
-    ["Cysto w/washings", 1.49],
-    ["Cysto w/hydro", 3.13],
-    ["Bladder Botox", 3.12],
-    ["Sling", 11.11],
-    ["Interstim test", 1],
-    ["Interstim implant", 1],
-    ["Interstim removal & replacement", 1],
-    ["Anterior colporrhaphy", 9.94],
-    ["Rectocele", 11.21],
-    ["Vaginal vault suspension", 1],
-    ["VH", 1],
-    ["RH/BS", 1]
+  const DEFAULT_PROC_ROWS = [
+    ['Pessary fitting', 0.87],
+    ['Urod.', 4.13],
+    ['Cysto', 1.49],
+    ['Cysto w/washings', 1.49],
+    ['Cysto w/hydro', 3.13],
+    ['Bladder Botox', 3.12],
+    ['Sling', 11.11],
+    ['Interstim test', 1],
+    ['Interstim implant', 1],
+    ['Interstim removal & replacement', 1],
+    ['Anterior colporrhaphy', 9.94],
+    ['Rectocele', 11.21],
+    ['Vaginal vault suspension', 1],
+    ['VH', 1],
+    ['RH/BS', 1]
   ];
+
+  let officeRows = DEFAULT_OFFICE_ROWS.map(row => ({ name: row.name, rvu: Number(row.rvu) || 0 }));
+  let procRows = DEFAULT_PROC_ROWS.map(([name, rvu]) => [name, Number(rvu)]);
 
   const officeBody = document.getElementById('office-body');
-  officeRows.forEach((name, i) => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td class="name">${name}</td>
-      <td class="count-cell">
-        <input class="count" type="text" inputmode="decimal"
-          pattern="[0-9]*\\.?[0-9]*" id="office-${i}" aria-label="${name} count">
-      </td>`;
-    officeBody.appendChild(tr);
-  });
-
   const procBody = document.getElementById('proc-body');
-  procRows.forEach(([name, rvu], i) => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td class="name">${name}</td>
-      <td class="rvu">${rvu.toFixed(2)}</td>
-      <td class="count-cell">
-        <input class="count" type="text" inputmode="decimal"
-          pattern="[0-9]*\\.?[0-9]*" id="proc-${i}" data-rvu="${rvu}" aria-label="${name} count">
-      </td>
-      <td class="total" id="proc-total-${i}">0.00</td>`;
-    procBody.appendChild(tr);
-  });
+
+  function renderOfficeRows() {
+    officeBody.innerHTML = '';
+    officeRows.forEach((row, i) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="name">${row.name}</td>
+        <td class="rvu">${Number(row.rvu).toFixed(2)}</td>
+        <td class="count-cell">
+          <input class="count" type="text" inputmode="decimal"
+            pattern="[0-9]*\\.?[0-9]*" id="office-${i}" aria-label="${row.name} count">
+        </td>
+        <td class="total" id="office-total-${i}">0.00</td>
+        <td><button class="edit-btn" type="button" data-type="office" data-index="${i}">Edit</button></td>`;
+      officeBody.appendChild(tr);
+    });
+  }
+
+  function renderProcedureRows() {
+    procBody.innerHTML = '';
+    procRows.forEach(([name, rvu], i) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="name">${name}</td>
+        <td class="rvu">${Number(rvu).toFixed(2)}</td>
+        <td class="count-cell">
+          <input class="count" type="text" inputmode="decimal"
+            pattern="[0-9]*\\.?[0-9]*" id="proc-${i}" data-rvu="${rvu}" aria-label="${name} count">
+        </td>
+        <td class="total" id="proc-total-${i}">0.00</td>
+        <td><button class="edit-btn" type="button" data-type="procedure" data-index="${i}">Edit</button></td>`;
+      procBody.appendChild(tr);
+    });
+  }
+
+  function saveCustomRows() {
+    try {
+      const customOffice = officeRows.filter(row => !DEFAULT_OFFICE_ROWS.some(defaultRow =>
+        defaultRow.name === row.name && Number(defaultRow.rvu) === Number(row.rvu)
+      )).map(row => ({ name: row.name, rvu: Number(row.rvu) || 0 }));
+
+      const customProcedures = procRows.filter(([name, rvu]) => !DEFAULT_PROC_ROWS.some(([defaultName, defaultRvu]) =>
+        defaultName === name && Number(defaultRvu) === Number(rvu)
+      )).map(([name, rvu]) => ({ name, rvu: Number(rvu) || 0 }));
+
+      localStorage.setItem(CUSTOM_ITEMS_KEY, JSON.stringify({ office: customOffice, procedures: customProcedures }));
+    } catch (e) {
+      console.warn('Could not persist custom rows.', e);
+    }
+  }
+
+  function loadCustomRows() {
+    try {
+      const raw = localStorage.getItem(CUSTOM_ITEMS_KEY);
+      if (!raw) return;
+
+      const parsed = JSON.parse(raw);
+      const customOffice = Array.isArray(parsed.office) ? parsed.office : [];
+      const customProcedures = Array.isArray(parsed.procedures) ? parsed.procedures : [];
+
+      officeRows = [
+        ...DEFAULT_OFFICE_ROWS.map(row => ({ name: row.name, rvu: Number(row.rvu) || 0 })),
+        ...customOffice
+          .filter(item => item && typeof item.name === 'string' && item.name.trim())
+          .map(item => ({ name: item.name.trim(), rvu: Number(item.rvu) || 0 }))
+      ];
+
+      procRows = [
+        ...DEFAULT_PROC_ROWS.map(([name, rvu]) => [String(name), Number(rvu)]),
+        ...customProcedures
+          .filter(item => item && typeof item.name === 'string' && item.name.trim())
+          .map(item => [item.name.trim(), Number(item.rvu)])
+          .filter(([, rvu]) => Number.isFinite(rvu) && rvu >= 0)
+      ];
+    } catch (e) {
+      officeRows = DEFAULT_OFFICE_ROWS.map(row => ({ name: row.name, rvu: Number(row.rvu) || 0 }));
+      procRows = DEFAULT_PROC_ROWS.map(([name, rvu]) => [name, Number(rvu)]);
+    }
+  }
+
+  function updateRowEdit(type, index) {
+    if (type === 'office') {
+      const row = officeRows[index];
+      if (!row) return;
+
+      const newName = window.prompt('Edit office item name:', row.name);
+      if (newName === null) return;
+      const trimmedName = newName.trim();
+      if (!trimmedName) {
+        setStatus('Office item name cannot be blank.', true);
+        return;
+      }
+
+      const newRvuText = window.prompt('Edit office RVU:', String(row.rvu));
+      const newRvu = Number.parseFloat(newRvuText);
+      if (newRvuText === null || !Number.isFinite(newRvu) || newRvu < 0) {
+        setStatus('Enter a valid office RVU value.', true);
+        return;
+      }
+
+      officeRows[index] = { name: trimmedName, rvu: newRvu };
+      saveCustomRows();
+      renderOfficeRows();
+      recalc();
+      setStatus('Office item updated', false, true);
+      return;
+    }
+
+    const row = procRows[index];
+    if (!row) return;
+
+    const newName = window.prompt('Edit procedure name:', row[0]);
+    if (newName === null) return;
+    const trimmedName = newName.trim();
+    if (!trimmedName) {
+      setStatus('Procedure name cannot be blank.', true);
+      return;
+    }
+
+    const newRvuText = window.prompt('Edit procedure RVU:', String(row[1]));
+    const newRvu = Number.parseFloat(newRvuText);
+    if (newRvuText === null || !Number.isFinite(newRvu) || newRvu < 0) {
+      setStatus('Enter a valid procedure RVU value.', true);
+      return;
+    }
+
+    procRows[index] = [trimmedName, newRvu];
+    saveCustomRows();
+    renderProcedureRows();
+    recalc();
+    setStatus('Procedure updated', false, true);
+  }
 
   function todayISO() {
     const d = new Date();
@@ -310,22 +462,48 @@
   }
 
   function recalc() {
-    let grand = 0;
+    let officeGrand = 0;
+    officeRows.forEach((row, i) => {
+      const input = document.getElementById(`office-${i}`);
+      const val = input ? parseFloat(input.value) : 0;
+      const count = Number.isFinite(val) ? val : 0;
+      const rowTotal = Number(row.rvu) * count;
+      const totalEl = document.getElementById(`office-total-${i}`);
+      if (totalEl) totalEl.textContent = rowTotal.toFixed(2);
+      officeGrand += rowTotal;
+    });
+
+    let procGrand = 0;
     procRows.forEach(([name, rvu], i) => {
       const input = document.getElementById(`proc-${i}`);
-      const val = parseFloat(input.value);
-      const count = isNaN(val) ? 0 : val;
-      const rowTotal = rvu * count;
-      document.getElementById(`proc-total-${i}`).textContent = rowTotal.toFixed(2);
-      grand += rowTotal;
+      const val = input ? parseFloat(input.value) : 0;
+      const count = Number.isFinite(val) ? val : 0;
+      const rowTotal = Number(rvu) * count;
+      const totalEl = document.getElementById(`proc-total-${i}`);
+      if (totalEl) totalEl.textContent = rowTotal.toFixed(2);
+      procGrand += rowTotal;
     });
+
+    const grand = officeGrand + procGrand;
+    document.getElementById('office-total').textContent = officeGrand.toFixed(2);
     document.getElementById('grand-total').textContent = grand.toFixed(2);
     document.getElementById('table-grand-total').textContent = grand.toFixed(2);
   }
 
+  officeBody.addEventListener('input', () => {
+    recalc();
+    setStatus('Not saved yet');
+  });
+
   procBody.addEventListener('input', () => {
     recalc();
     setStatus('Not saved yet');
+  });
+
+  document.body.addEventListener('click', (event) => {
+    const button = event.target.closest('.edit-btn');
+    if (!button) return;
+    updateRowEdit(button.dataset.type, Number(button.dataset.index));
   });
 
   document.body.addEventListener('focusin', (e) => {
@@ -338,6 +516,88 @@
     document.querySelectorAll('input.count').forEach(inp => inp.value = '');
     recalc();
     setStatus('Not saved yet');
+  });
+
+  document.getElementById('add-office-btn').addEventListener('click', () => {
+    const nameInput = document.getElementById('new-office-name');
+    const rvuInput = document.getElementById('new-office-rvu');
+    const name = nameInput.value.trim();
+    const rvu = Number.parseFloat(rvuInput.value);
+
+    if (!name) {
+      setStatus('Enter a name for the office item.', true);
+      nameInput.focus();
+      return;
+    }
+
+    if (!Number.isFinite(rvu) || rvu < 0) {
+      setStatus('Enter a valid office RVU value.', true);
+      rvuInput.focus();
+      return;
+    }
+
+    officeRows.push({ name, rvu });
+    nameInput.value = '';
+    rvuInput.value = '';
+    renderOfficeRows();
+    recalc();
+    saveCustomRows();
+    setStatus('Office item added', false, true);
+  });
+
+  document.getElementById('new-office-name').addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      document.getElementById('add-office-btn').click();
+    }
+  });
+
+  document.getElementById('new-office-rvu').addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      document.getElementById('add-office-btn').click();
+    }
+  });
+
+  document.getElementById('add-proc-btn').addEventListener('click', () => {
+    const nameInput = document.getElementById('new-proc-name');
+    const rvuInput = document.getElementById('new-proc-rvu');
+    const name = nameInput.value.trim();
+    const rvu = Number.parseFloat(rvuInput.value);
+
+    if (!name) {
+      setStatus('Enter a procedure name.', true);
+      nameInput.focus();
+      return;
+    }
+
+    if (!Number.isFinite(rvu) || rvu < 0) {
+      setStatus('Enter a valid RVU value.', true);
+      rvuInput.focus();
+      return;
+    }
+
+    procRows.push([name, rvu]);
+    nameInput.value = '';
+    rvuInput.value = '';
+    renderProcedureRows();
+    recalc();
+    saveCustomRows();
+    setStatus('Procedure added', false, true);
+  });
+
+  document.getElementById('new-proc-name').addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      document.getElementById('add-proc-btn').click();
+    }
+  });
+
+  document.getElementById('new-proc-rvu').addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      document.getElementById('add-proc-btn').click();
+    }
   });
 
   document.getElementById('today').textContent = new Date().toLocaleDateString(undefined, {
@@ -383,6 +643,9 @@
     }
   });
 
+  loadCustomRows();
+  renderOfficeRows();
+  renderProcedureRows();
   recalc();
   loadHistory();
 </script>
