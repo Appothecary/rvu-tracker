@@ -46,7 +46,20 @@
   }
 
   h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; margin: 0; }
+  .date-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
   #today { font-size: 0.85rem; color: var(--ink-soft); font-weight: 500; }
+  #date-picker {
+    font: inherit;
+    background: var(--surface);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 7px 9px;
+  }
 
   .reset-btn {
     background: none;
@@ -61,7 +74,7 @@
   }
   .reset-btn:active { background: var(--line-soft); }
 
-  .edit-btn {
+  .edit-btn, .delete-btn {
     background: var(--surface);
     border: 1px solid var(--line);
     color: var(--ink-soft);
@@ -71,7 +84,28 @@
     padding: 6px 8px;
     border-radius: 6px;
   }
-  .edit-btn:active { background: var(--line-soft); }
+  .delete-btn {
+    color: var(--error);
+    margin-left: 4px;
+  }
+  .edit-btn:active, .delete-btn:active { background: var(--line-soft); }
+
+  .inline-edit {
+    width: 100%;
+    min-width: 0;
+    font: inherit;
+    font-size: 0.9rem;
+    padding: 7px 8px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--ink);
+  }
+  .inline-edit:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
 
   section { margin-bottom: 30px; }
 
@@ -177,14 +211,53 @@
     left: 0; right: 0; bottom: 0;
     background: var(--accent);
     color: var(--accent-ink);
-    padding: 16px 18px;
+    padding: 14px 18px 16px;
     display: flex;
-    align-items: baseline;
+    align-items: flex-end;
     justify-content: space-between;
+    gap: 18px;
     box-shadow: 0 -4px 14px rgba(0,0,0,0.12);
   }
-  .totalbar-label { font-size: 0.85rem; font-weight: 500; opacity: 0.85; }
-  .totalbar-value { font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .totalbar-content,
+  .totalbar-month {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  .totalbar-content {
+    min-width: 0;
+  }
+  .totalbar-label,
+  .totalbar-month-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    opacity: 0.82;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .totalbar-value,
+  .totalbar-month-value {
+    font-size: 1.7rem;
+    font-weight: 700;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+  }
+  .totalbar-month {
+    min-width: 150px;
+    align-items: flex-end;
+    background: rgba(255,255,255,0.10);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 10px;
+    padding: 8px 12px;
+  }
+  .totalbar-month-label {
+    font-size: 0.68rem;
+    opacity: 0.8;
+  }
+  .totalbar-month-value {
+    font-size: 1.3rem;
+  }
 
   @media (max-width: 400px) {
     thead th, tbody td { padding: 8px 6px; font-size: 0.85rem; }
@@ -197,7 +270,10 @@
 <div class="wrap">
   <header>
     <h1>RVU Tracker</h1>
-    <span id="today"></span>
+    <div class="date-controls">
+      <span id="today"></span>
+      <input id="date-picker" type="date" aria-label="Select date">
+    </div>
   </header>
 
   <section>
@@ -272,14 +348,19 @@
 </div>
 
 <div class="totalbar">
-  <span class="totalbar-label">Today&rsquo;s RVU total</span>
-  <span class="totalbar-value" id="grand-total">0.00</span>
+  <div class="totalbar-content">
+    <span class="totalbar-label">Today&rsquo;s RVU total</span>
+    <span class="totalbar-value" id="grand-total">0.00</span>
+  </div>
 </div>
 
 <script>
   const STORAGE_KEY = 'rvuTrackerHistory';
   const CUSTOM_ITEMS_KEY = 'rvuTrackerCustomItems';
+  const DAILY_DATA_KEY = 'rvuTrackerDailyData';
   let history = [];
+  let dailyData = {};
+  let selectedDate = todayISO();
 
   const DEFAULT_OFFICE_ROWS = [
     { name: 'New level 4', rvu: 0 },
@@ -311,39 +392,64 @@
 
   const officeBody = document.getElementById('office-body');
   const procBody = document.getElementById('proc-body');
+  const inlineEditState = { office: null, procedure: null };
 
   function renderOfficeRows() {
     officeBody.innerHTML = '';
     officeRows.forEach((row, i) => {
+      const isEditing = inlineEditState.office === i;
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td class="name">${row.name}</td>
-        <td class="rvu">${Number(row.rvu).toFixed(2)}</td>
+        <td class="name">${isEditing ? `<input class="inline-edit" data-type="office" data-index="${i}" data-field="name" value="${row.name.replace(/"/g, '&quot;')}" aria-label="Edit office item name">` : row.name}</td>
+        <td class="rvu">${isEditing ? `<input class="inline-edit" data-type="office" data-index="${i}" data-field="rvu" type="number" min="0" step="0.01" value="${Number(row.rvu).toFixed(2)}" aria-label="Edit office RVU">` : Number(row.rvu).toFixed(2)}</td>
         <td class="count-cell">
           <input class="count" type="text" inputmode="decimal"
             pattern="[0-9]*\\.?[0-9]*" id="office-${i}" aria-label="${row.name} count">
         </td>
         <td class="total" id="office-total-${i}">0.00</td>
-        <td><button class="edit-btn" type="button" data-type="office" data-index="${i}">Edit</button></td>`;
+        <td>
+          <button class="edit-btn" type="button" data-type="office" data-index="${i}">Edit</button>
+          <button class="delete-btn" type="button" data-type="office" data-index="${i}">Delete</button>
+        </td>`;
       officeBody.appendChild(tr);
     });
+
+    if (inlineEditState.office !== null) {
+      const nameInput = document.querySelector(`.inline-edit[data-type="office"][data-index="${inlineEditState.office}"][data-field="name"]`);
+      if (nameInput) {
+        nameInput.focus();
+        nameInput.select();
+      }
+    }
   }
 
   function renderProcedureRows() {
     procBody.innerHTML = '';
     procRows.forEach(([name, rvu], i) => {
+      const isEditing = inlineEditState.procedure === i;
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td class="name">${name}</td>
-        <td class="rvu">${Number(rvu).toFixed(2)}</td>
+        <td class="name">${isEditing ? `<input class="inline-edit" data-type="procedure" data-index="${i}" data-field="name" value="${name.replace(/"/g, '&quot;')}" aria-label="Edit procedure name">` : name}</td>
+        <td class="rvu">${isEditing ? `<input class="inline-edit" data-type="procedure" data-index="${i}" data-field="rvu" type="number" min="0" step="0.01" value="${Number(rvu).toFixed(2)}" aria-label="Edit procedure RVU">` : Number(rvu).toFixed(2)}</td>
         <td class="count-cell">
           <input class="count" type="text" inputmode="decimal"
             pattern="[0-9]*\\.?[0-9]*" id="proc-${i}" data-rvu="${rvu}" aria-label="${name} count">
         </td>
         <td class="total" id="proc-total-${i}">0.00</td>
-        <td><button class="edit-btn" type="button" data-type="procedure" data-index="${i}">Edit</button></td>`;
+        <td>
+          <button class="edit-btn" type="button" data-type="procedure" data-index="${i}">Edit</button>
+          <button class="delete-btn" type="button" data-type="procedure" data-index="${i}">Delete</button>
+        </td>`;
       procBody.appendChild(tr);
     });
+
+    if (inlineEditState.procedure !== null) {
+      const nameInput = document.querySelector(`.inline-edit[data-type="procedure"][data-index="${inlineEditState.procedure}"][data-field="name"]`);
+      if (nameInput) {
+        nameInput.focus();
+        nameInput.select();
+      }
+    }
   }
 
   function saveCustomRows() {
@@ -391,27 +497,27 @@
     }
   }
 
-  function updateRowEdit(type, index) {
+  function commitInlineEdit(type, index) {
     if (type === 'office') {
       const row = officeRows[index];
       if (!row) return;
 
-      const newName = window.prompt('Edit office item name:', row.name);
-      if (newName === null) return;
-      const trimmedName = newName.trim();
-      if (!trimmedName) {
+      const nameInput = document.querySelector(`.inline-edit[data-type="office"][data-index="${index}"][data-field="name"]`);
+      const rvuInput = document.querySelector(`.inline-edit[data-type="office"][data-index="${index}"][data-field="rvu"]`);
+      const nextName = nameInput ? nameInput.value.trim() : row.name;
+      const nextRvu = rvuInput ? Number.parseFloat(rvuInput.value) : Number(row.rvu);
+
+      if (!nextName) {
         setStatus('Office item name cannot be blank.', true);
         return;
       }
-
-      const newRvuText = window.prompt('Edit office RVU:', String(row.rvu));
-      const newRvu = Number.parseFloat(newRvuText);
-      if (newRvuText === null || !Number.isFinite(newRvu) || newRvu < 0) {
+      if (!Number.isFinite(nextRvu) || nextRvu < 0) {
         setStatus('Enter a valid office RVU value.', true);
         return;
       }
 
-      officeRows[index] = { name: trimmedName, rvu: newRvu };
+      officeRows[index] = { name: nextName, rvu: nextRvu };
+      inlineEditState.office = null;
       saveCustomRows();
       renderOfficeRows();
       recalc();
@@ -422,31 +528,105 @@
     const row = procRows[index];
     if (!row) return;
 
-    const newName = window.prompt('Edit procedure name:', row[0]);
-    if (newName === null) return;
-    const trimmedName = newName.trim();
-    if (!trimmedName) {
+    const nameInput = document.querySelector(`.inline-edit[data-type="procedure"][data-index="${index}"][data-field="name"]`);
+    const rvuInput = document.querySelector(`.inline-edit[data-type="procedure"][data-index="${index}"][data-field="rvu"]`);
+    const nextName = nameInput ? nameInput.value.trim() : row[0];
+    const nextRvu = rvuInput ? Number.parseFloat(rvuInput.value) : Number(row[1]);
+
+    if (!nextName) {
       setStatus('Procedure name cannot be blank.', true);
       return;
     }
-
-    const newRvuText = window.prompt('Edit procedure RVU:', String(row[1]));
-    const newRvu = Number.parseFloat(newRvuText);
-    if (newRvuText === null || !Number.isFinite(newRvu) || newRvu < 0) {
+    if (!Number.isFinite(nextRvu) || nextRvu < 0) {
       setStatus('Enter a valid procedure RVU value.', true);
       return;
     }
 
-    procRows[index] = [trimmedName, newRvu];
+    procRows[index] = [nextName, nextRvu];
+    inlineEditState.procedure = null;
     saveCustomRows();
     renderProcedureRows();
     recalc();
     setStatus('Procedure updated', false, true);
   }
 
+  function toggleInlineEdit(type, index) {
+    if (inlineEditState[type] === index) {
+      commitInlineEdit(type, index);
+      return;
+    }
+
+    inlineEditState.office = type === 'office' ? index : null;
+    inlineEditState.procedure = type === 'procedure' ? index : null;
+    if (type === 'office') {
+      renderOfficeRows();
+    } else {
+      renderProcedureRows();
+    }
+  }
+
   function todayISO() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  function setSelectedDate(iso) {
+    selectedDate = iso;
+    const picker = document.getElementById('date-picker');
+    if (picker) picker.value = iso;
+    const display = document.getElementById('today');
+    if (display) {
+      const date = new Date(`${iso}T12:00:00`);
+      display.textContent = date.toLocaleDateString(undefined, {
+        weekday: 'short', month: 'short', day: 'numeric'
+      });
+    }
+    loadSelectedDay();
+  }
+
+  function loadDailyData() {
+    try {
+      const raw = localStorage.getItem(DAILY_DATA_KEY);
+      dailyData = raw ? JSON.parse(raw) : {};
+      if (!dailyData || typeof dailyData !== 'object' || Array.isArray(dailyData)) dailyData = {};
+    } catch (error) {
+      dailyData = {};
+    }
+  }
+
+  function applySavedDayData(dateKey) {
+    const entry = dailyData[dateKey];
+    document.querySelectorAll('input.count').forEach(inp => inp.value = '');
+
+    if (!entry) {
+      recalc();
+      return;
+    }
+
+    const officeMap = Array.isArray(entry.office) ? entry.office : [];
+    const procMap = Array.isArray(entry.procedures) ? entry.procedures : [];
+
+    officeRows.forEach((row, i) => {
+      const match = officeMap.find(item => item && item.name === row.name);
+      const input = document.getElementById(`office-${i}`);
+      if (input && match && Number.isFinite(Number(match.count))) {
+        input.value = String(Number(match.count));
+      }
+    });
+
+    procRows.forEach(([name, rvu], i) => {
+      const match = procMap.find(item => item && item.name === name && Number(item.rvu) === Number(rvu));
+      const input = document.getElementById(`proc-${i}`);
+      if (input && match && Number.isFinite(Number(match.count))) {
+        input.value = String(Number(match.count));
+      }
+    });
+
+    recalc();
+  }
+
+  function loadSelectedDay() {
+    applySavedDayData(selectedDate);
   }
 
   function formatDateShort(iso) {
@@ -500,10 +680,79 @@
     setStatus('Not saved yet');
   });
 
+  function deleteRow(type, index) {
+    const rowName = type === 'office' ? officeRows[index]?.name : procRows[index]?.[0];
+    if (!rowName) return;
+
+    const confirmDelete = window.confirm(`Are you sure you want to delete "${rowName}"?`);
+    if (!confirmDelete) return;
+
+    if (type === 'office') {
+      officeRows.splice(index, 1);
+      inlineEditState.office = null;
+      saveCustomRows();
+      renderOfficeRows();
+      recalc();
+      setStatus('Office item deleted', false, true);
+      return;
+    }
+
+    procRows.splice(index, 1);
+    inlineEditState.procedure = null;
+    saveCustomRows();
+    renderProcedureRows();
+    recalc();
+    setStatus('Procedure deleted', false, true);
+  }
+
   document.body.addEventListener('click', (event) => {
-    const button = event.target.closest('.edit-btn');
-    if (!button) return;
-    updateRowEdit(button.dataset.type, Number(button.dataset.index));
+    const editButton = event.target.closest('.edit-btn');
+    if (editButton) {
+      toggleInlineEdit(editButton.dataset.type, Number(editButton.dataset.index));
+      return;
+    }
+
+    const deleteButton = event.target.closest('.delete-btn');
+    if (deleteButton) {
+      deleteRow(deleteButton.dataset.type, Number(deleteButton.dataset.index));
+    }
+  });
+
+  document.body.addEventListener('keydown', (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+
+    if (target.classList.contains('inline-edit') && event.key === 'Enter') {
+      event.preventDefault();
+      const type = target.dataset.type;
+      const index = Number(target.dataset.index);
+      commitInlineEdit(type, index);
+    }
+
+    if (target.classList.contains('inline-edit') && event.key === 'Escape') {
+      if (target.dataset.type === 'office') {
+        inlineEditState.office = null;
+        renderOfficeRows();
+      } else if (target.dataset.type === 'procedure') {
+        inlineEditState.procedure = null;
+        renderProcedureRows();
+      }
+    }
+  });
+
+  document.body.addEventListener('focusout', (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.classList.contains('inline-edit')) {
+      const type = target.dataset.type;
+      const index = Number(target.dataset.index);
+      setTimeout(() => {
+        const stillExists = document.querySelector(`.inline-edit[data-type="${type}"][data-index="${index}"]`);
+        if (!stillExists) {
+          commitInlineEdit(type, index);
+        }
+      }, 0);
+    }
   });
 
   document.body.addEventListener('focusin', (e) => {
@@ -600,9 +849,12 @@
     }
   });
 
-  document.getElementById('today').textContent = new Date().toLocaleDateString(undefined, {
-    weekday: 'short', month: 'short', day: 'numeric'
+  document.getElementById('date-picker').addEventListener('change', (event) => {
+    setSelectedDate(event.target.value || todayISO());
+    setStatus('Date changed', false, false);
   });
+
+  setSelectedDate(todayISO());
 
   function updateMonthlyTotal() {
     const now = new Date();
@@ -610,6 +862,7 @@
     const monthEntries = history.filter(e => e && e.date && e.date.startsWith(ym));
     const sum = monthEntries.reduce((acc, e) => acc + (Number(e.total) || 0), 0);
     document.getElementById('monthly-total').textContent = sum.toFixed(2);
+    document.getElementById('footer-monthly-total').textContent = sum.toFixed(2);
     document.getElementById('monthly-label-month').textContent =
       now.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
   }
@@ -627,7 +880,24 @@
 
   document.getElementById('save-btn').addEventListener('click', () => {
     const grand = parseFloat(document.getElementById('grand-total').textContent);
-    const date = todayISO();
+    const date = selectedDate || todayISO();
+    const officePayload = officeRows.map((row, i) => ({
+      name: row.name,
+      rvu: Number(row.rvu) || 0,
+      count: Number.isFinite(parseFloat(document.getElementById(`office-${i}`)?.value)) ? parseFloat(document.getElementById(`office-${i}`).value) : 0
+    }));
+    const procedurePayload = procRows.map(([name, rvu], i) => ({
+      name,
+      rvu: Number(rvu) || 0,
+      count: Number.isFinite(parseFloat(document.getElementById(`proc-${i}`)?.value)) ? parseFloat(document.getElementById(`proc-${i}`).value) : 0
+    }));
+
+    dailyData[date] = {
+      office: officePayload,
+      procedures: procedurePayload,
+      total: Math.round(grand * 100) / 100
+    };
+
     const idx = history.findIndex(e => e.date === date);
     const entry = { date, total: Math.round(grand * 100) / 100 };
     const isUpdate = idx >= 0;
@@ -635,6 +905,7 @@
     history.sort((a, b) => a.date.localeCompare(b.date));
 
     try {
+      localStorage.setItem(DAILY_DATA_KEY, JSON.stringify(dailyData));
       localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
       updateMonthlyTotal();
       setStatus(`${isUpdate ? 'Updated' : 'Saved'} — ${formatDateShort(date)}`, false, true);
@@ -644,10 +915,12 @@
   });
 
   loadCustomRows();
+  loadDailyData();
   renderOfficeRows();
   renderProcedureRows();
   recalc();
   loadHistory();
+  setSelectedDate(selectedDate);
 </script>
 
 </body>
