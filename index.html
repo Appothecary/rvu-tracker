@@ -1,11 +1,309 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>RVU Tracker</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>RVU Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #F7F5F0;
+    --surface: #FFFFFF;
+    --ink: #1C2321;
+    --ink-soft: #5B645F;
+    --line: #DBD6C9;
+    --line-soft: #EAE7DE;
+    --accent: #2B5D53;
+    --accent-soft: #E4EDE9;
+    --accent-ink: #FFFFFF;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    padding-bottom: 92px; /* room for sticky total bar */
+  }
+
+  .wrap {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 20px 14px 8px;
+  }
+
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 6px 4px 20px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 22px;
+  }
+
+  h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0;
+  }
+
+  #today {
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+    font-weight: 500;
+  }
+
+  .reset-btn {
+    background: none;
+    border: 1px solid var(--line);
+    color: var(--ink-soft);
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 500;
+    padding: 8px 12px;
+    border-radius: 7px;
+    margin-top: 10px;
+  }
+  .reset-btn:active { background: var(--line-soft); }
+
+  section { margin-bottom: 30px; }
+
+  .section-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin: 0 0 3px;
+  }
+  .section-sub {
+    font-size: 0.8rem;
+    color: var(--ink-soft);
+    margin: 0 0 12px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  thead th {
+    text-align: left;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--ink-soft);
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--line);
+    background: var(--line-soft);
+  }
+  thead th.num { text-align: right; }
+
+  tbody td {
+    padding: 10px 10px;
+    border-bottom: 1px solid var(--line-soft);
+    font-size: 0.92rem;
+    vertical-align: middle;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:nth-child(even) { background: #FBFAF7; }
+
+  td.name { font-weight: 500; }
+  td.rvu, td.total {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-soft);
+    white-space: nowrap;
+  }
+  td.total {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  td.count-cell { width: 84px; }
+
+  input.count {
+    width: 100%;
+    font-family: inherit;
+    font-size: 1rem;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    padding: 10px 4px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: var(--paper);
+    color: var(--ink);
+  }
+  input.count:focus {
+    outline: none;
+    border-color: var(--accent);
+    background: var(--surface);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  .totalbar {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    background: var(--accent);
+    color: var(--accent-ink);
+    padding: 16px 18px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    box-shadow: 0 -4px 14px rgba(0,0,0,0.12);
+  }
+  .totalbar-label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    opacity: 0.85;
+  }
+  .totalbar-value {
+    font-size: 1.6rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (max-width: 400px) {
+    thead th, tbody td { padding: 8px 6px; font-size: 0.85rem; }
+    h1 { font-size: 1.3rem; }
+  }
+</style>
 </head>
 <body>
-  <h1>RVU Tracker</h1>
+
+<div class="wrap">
+  <header>
+    <h1>RVU Tracker</h1>
+    <span id="today"></span>
+  </header>
+
+  <section>
+    <p class="section-title">Office</p>
+    <p class="section-sub">Visit counts — not included in RVU total</p>
+    <table>
+      <thead>
+        <tr><th>Name</th><th class="num">Count</th></tr>
+      </thead>
+      <tbody id="office-body"></tbody>
+    </table>
+  </section>
+
+  <section>
+    <p class="section-title">Procedures</p>
+    <p class="section-sub">RVU per unit &times; count = total</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th class="num">RVU</th>
+          <th class="num">Count</th>
+          <th class="num">Total</th>
+        </tr>
+      </thead>
+      <tbody id="proc-body"></tbody>
+    </table>
+  </section>
+
+  <button class="reset-btn" id="reset-btn">Clear all entries</button>
+</div>
+
+<div class="totalbar">
+  <span class="totalbar-label">Today&rsquo;s RVU total</span>
+  <span class="totalbar-value" id="grand-total">0.00</span>
+</div>
+
+<script>
+  const officeRows = [
+    "New level 4",
+    "Return level 4",
+    "Pessary fitting",
+    "Pelvic exam"
+  ];
+
+  const procRows = [
+    ["Pessary fitting", 0.87],
+    ["Urod.", 4.13],
+    ["Cysto", 1.49],
+    ["Cysto w/washings", 1.49],
+    ["Cysto w/hydro", 3.13],
+    ["Bladder Botox", 3.12],
+    ["Sling", 11.11],
+    ["Interstim test", 1],
+    ["Interstim implant", 1],
+    ["Interstim removal & replacement", 1],
+    ["Anterior colporrhaphy", 9.94],
+    ["Rectocele", 11.21],
+    ["Vaginal vault suspension", 1],
+    ["VH", 1],
+    ["RH/BS", 1]
+  ];
+
+  const officeBody = document.getElementById('office-body');
+  officeRows.forEach((name, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="name">${name}</td>
+      <td class="count-cell">
+        <input class="count" type="text" inputmode="decimal"
+          pattern="[0-9]*\\.?[0-9]*" id="office-${i}" aria-label="${name} count">
+      </td>`;
+    officeBody.appendChild(tr);
+  });
+
+  const procBody = document.getElementById('proc-body');
+  procRows.forEach(([name, rvu], i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="name">${name}</td>
+      <td class="rvu">${rvu.toFixed(2)}</td>
+      <td class="count-cell">
+        <input class="count" type="text" inputmode="decimal"
+          pattern="[0-9]*\\.?[0-9]*" id="proc-${i}" data-rvu="${rvu}" aria-label="${name} count">
+      </td>
+      <td class="total" id="proc-total-${i}">0.00</td>`;
+    procBody.appendChild(tr);
+  });
+
+  function recalc() {
+    let grand = 0;
+    procRows.forEach(([name, rvu], i) => {
+      const input = document.getElementById(`proc-${i}`);
+      const val = parseFloat(input.value);
+      const count = isNaN(val) ? 0 : val;
+      const rowTotal = rvu * count;
+      document.getElementById(`proc-total-${i}`).textContent = rowTotal.toFixed(2);
+      grand += rowTotal;
+    });
+    document.getElementById('grand-total').textContent = grand.toFixed(2);
+  }
+
+  document.getElementById('proc-body').addEventListener('input', recalc);
+
+  // select-all on focus for fast re-entry
+  document.body.addEventListener('focusin', (e) => {
+    if (e.target.classList.contains('count')) {
+      setTimeout(() => e.target.select(), 0);
+    }
+  });
+
+  document.getElementById('reset-btn').addEventListener('click', () => {
+    document.querySelectorAll('input.count').forEach(inp => inp.value = '');
+    recalc();
+  });
+
+  document.getElementById('today').textContent = new Date().toLocaleDateString(undefined, {
+    weekday: 'short', month: 'short', day: 'numeric'
+  });
+</script>
+
 </body>
 </html>
