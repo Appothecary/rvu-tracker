@@ -18,6 +18,8 @@
     --accent: #2B5D53;
     --accent-soft: #E4EDE9;
     --accent-ink: #FFFFFF;
+    --error: #A6432E;
+    --error-soft: #F3E4E0;
   }
 
   * { box-sizing: border-box; }
@@ -31,9 +33,7 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  body {
-    padding-bottom: 92px; /* room for sticky total bar */
-  }
+  body { padding-bottom: 92px; }
 
   .wrap {
     max-width: 640px;
@@ -50,18 +50,8 @@
     margin-bottom: 22px;
   }
 
-  h1 {
-    font-size: 1.5rem;
-    font-weight: 700;
-    letter-spacing: -0.01em;
-    margin: 0;
-  }
-
-  #today {
-    font-size: 0.85rem;
-    color: var(--ink-soft);
-    font-weight: 500;
-  }
+  h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; margin: 0; }
+  #today { font-size: 0.85rem; color: var(--ink-soft); font-weight: 500; }
 
   .reset-btn {
     background: none;
@@ -72,22 +62,14 @@
     font-weight: 500;
     padding: 8px 12px;
     border-radius: 7px;
-    margin-top: 10px;
+    margin-top: 4px;
   }
   .reset-btn:active { background: var(--line-soft); }
 
   section { margin-bottom: 30px; }
 
-  .section-title {
-    font-size: 0.95rem;
-    font-weight: 600;
-    margin: 0 0 3px;
-  }
-  .section-sub {
-    font-size: 0.8rem;
-    color: var(--ink-soft);
-    margin: 0 0 12px;
-  }
+  .section-title { font-size: 0.95rem; font-weight: 600; margin: 0 0 3px; }
+  .section-sub { font-size: 0.8rem; color: var(--ink-soft); margin: 0 0 12px; }
 
   table {
     width: 100%;
@@ -125,10 +107,7 @@
     color: var(--ink-soft);
     white-space: nowrap;
   }
-  td.total {
-    color: var(--ink);
-    font-weight: 600;
-  }
+  td.total { color: var(--ink); font-weight: 600; }
   td.count-cell { width: 84px; }
 
   input.count {
@@ -150,6 +129,64 @@
     box-shadow: 0 0 0 3px var(--accent-soft);
   }
 
+  tfoot td {
+    padding: 12px 10px;
+    font-size: 0.92rem;
+    border-top: 2px solid var(--line);
+    background: var(--accent-soft);
+  }
+  tfoot td.total {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .monthly-value {
+    font-size: 1.9rem;
+    font-weight: 700;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .token-input {
+    width: 100%;
+    font-family: inherit;
+    font-size: 16px; /* prevents iOS auto-zoom */
+    padding: 12px 10px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: var(--surface);
+    color: var(--ink);
+    margin-bottom: 10px;
+  }
+  .token-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  .save-btn {
+    width: 100%;
+    font-family: inherit;
+    font-size: 1.05rem;
+    font-weight: 600;
+    padding: 15px 10px;
+    border: none;
+    border-radius: 9px;
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+  .save-btn:active { opacity: 0.85; }
+  .save-btn:disabled { opacity: 0.6; }
+
+  .save-status {
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+    margin: 10px 2px 0;
+  }
+  .save-status.is-error { color: var(--error); }
+  .save-status.is-success { color: var(--accent); font-weight: 600; }
+
   .totalbar {
     position: fixed;
     left: 0; right: 0; bottom: 0;
@@ -161,16 +198,8 @@
     justify-content: space-between;
     box-shadow: 0 -4px 14px rgba(0,0,0,0.12);
   }
-  .totalbar-label {
-    font-size: 0.85rem;
-    font-weight: 500;
-    opacity: 0.85;
-  }
-  .totalbar-value {
-    font-size: 1.6rem;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-  }
+  .totalbar-label { font-size: 0.85rem; font-weight: 500; opacity: 0.85; }
+  .totalbar-value { font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 
   @media (max-width: 400px) {
     thead th, tbody td { padding: 8px 6px; font-size: 0.85rem; }
@@ -210,10 +239,29 @@
         </tr>
       </thead>
       <tbody id="proc-body"></tbody>
+      <tfoot>
+        <tr>
+          <td colspan="3" style="text-align:right; font-weight:600;">Grand total</td>
+          <td class="total" id="table-grand-total">0.00</td>
+        </tr>
+      </tfoot>
     </table>
+    <button class="reset-btn" id="reset-btn">Clear all entries</button>
   </section>
 
-  <button class="reset-btn" id="reset-btn">Clear all entries</button>
+  <section id="monthly-section">
+    <p class="section-title">Monthly total</p>
+    <p class="section-sub" id="monthly-label-month">&nbsp;</p>
+    <div class="monthly-value" id="monthly-total">0.00</div>
+  </section>
+
+  <section id="save-section">
+    <label for="gh-token" class="section-title" style="display:block;">GitHub token</label>
+    <p class="section-sub">Needed only when you tap Save &middot; not stored once you leave the page</p>
+    <input type="password" id="gh-token" placeholder="ghp_..." autocomplete="off" class="token-input">
+    <button id="save-btn" class="save-btn">Save today's total</button>
+    <p id="save-status" class="save-status">Not saved yet</p>
+  </section>
 </div>
 
 <div class="totalbar">
@@ -222,6 +270,13 @@
 </div>
 
 <script>
+  const GITHUB_OWNER = 'Appothecary';
+  const GITHUB_REPO = 'rvu-tracker';
+  const FILE_PATH = 'rvu-log.json';
+  const BRANCH = 'main';
+
+  let history = [];
+
   const officeRows = [
     "New level 4",
     "Return level 4",
@@ -273,6 +328,23 @@
     procBody.appendChild(tr);
   });
 
+  function todayISO() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  function formatDateShort(iso) {
+    const [y, m, d] = iso.split('-').map(Number);
+    return new Date(y, m-1, d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+
+  function setStatus(msg, isError, isSuccess) {
+    const el = document.getElementById('save-status');
+    el.textContent = msg;
+    el.classList.toggle('is-error', !!isError);
+    el.classList.toggle('is-success', !!isSuccess);
+  }
+
   function recalc() {
     let grand = 0;
     procRows.forEach(([name, rvu], i) => {
@@ -284,11 +356,14 @@
       grand += rowTotal;
     });
     document.getElementById('grand-total').textContent = grand.toFixed(2);
+    document.getElementById('table-grand-total').textContent = grand.toFixed(2);
   }
 
-  document.getElementById('proc-body').addEventListener('input', recalc);
+  procBody.addEventListener('input', () => {
+    recalc();
+    setStatus('Not saved yet');
+  });
 
-  // select-all on focus for fast re-entry
   document.body.addEventListener('focusin', (e) => {
     if (e.target.classList.contains('count')) {
       setTimeout(() => e.target.select(), 0);
@@ -298,11 +373,122 @@
   document.getElementById('reset-btn').addEventListener('click', () => {
     document.querySelectorAll('input.count').forEach(inp => inp.value = '');
     recalc();
+    setStatus('Not saved yet');
   });
 
   document.getElementById('today').textContent = new Date().toLocaleDateString(undefined, {
     weekday: 'short', month: 'short', day: 'numeric'
   });
+
+  function updateMonthlyTotal() {
+    const now = new Date();
+    const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    const monthEntries = history.filter(e => e && e.date && e.date.startsWith(ym));
+    const sum = monthEntries.reduce((acc, e) => acc + (Number(e.total) || 0), 0);
+    document.getElementById('monthly-total').textContent = sum.toFixed(2);
+    document.getElementById('monthly-label-month').textContent =
+      now.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  }
+
+  async function loadHistory() {
+    try {
+      const res = await fetch('./' + FILE_PATH, { cache: 'no-store' });
+      history = res.ok ? await res.json() : [];
+      if (!Array.isArray(history)) history = [];
+    } catch (e) {
+      history = [];
+    }
+    updateMonthlyTotal();
+  }
+
+  function base64EncodeUtf8(str) {
+    return btoa(unescape(encodeURIComponent(str)));
+  }
+  function base64DecodeUtf8(str) {
+    return decodeURIComponent(escape(atob(str.replace(/\n/g, ''))));
+  }
+
+  const saveBtn = document.getElementById('save-btn');
+  saveBtn.addEventListener('click', async () => {
+    const tokenInput = document.getElementById('gh-token');
+    const token = tokenInput.value.trim();
+    if (!token) {
+      setStatus('Enter your GitHub token to save.', true);
+      tokenInput.focus();
+      return;
+    }
+
+    const grand = parseFloat(document.getElementById('grand-total').textContent);
+    const date = todayISO();
+    setStatus('Saving…');
+    saveBtn.disabled = true;
+
+    try {
+      let sha = null;
+      let latest = [];
+
+      const getRes = await fetch(
+        `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${FILE_PATH}?ref=${BRANCH}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (getRes.status === 200) {
+        const data = await getRes.json();
+        sha = data.sha;
+        latest = JSON.parse(base64DecodeUtf8(data.content));
+        if (!Array.isArray(latest)) latest = [];
+      } else if (getRes.status === 404) {
+        sha = null;
+        latest = [];
+      } else if (getRes.status === 401 || getRes.status === 403) {
+        throw new Error('Token was rejected — check it has write access to this repo.');
+      } else {
+        throw new Error(`Could not read current file (status ${getRes.status}).`);
+      }
+
+      const idx = latest.findIndex(e => e.date === date);
+      const entry = { date, total: Math.round(grand * 100) / 100 };
+      const isUpdate = idx >= 0;
+      if (isUpdate) { latest[idx] = entry; } else { latest.push(entry); }
+      latest.sort((a, b) => a.date.localeCompare(b.date));
+
+      const contentStr = JSON.stringify(latest, null, 2);
+      const putBody = {
+        message: isUpdate ? `Update RVU total for ${date}` : `Add RVU total for ${date}`,
+        content: base64EncodeUtf8(contentStr),
+        branch: BRANCH
+      };
+      if (sha) putBody.sha = sha;
+
+      const putRes = await fetch(
+        `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${FILE_PATH}`,
+        {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(putBody)
+        }
+      );
+
+      if (!putRes.ok) {
+        const errData = await putRes.json().catch(() => ({}));
+        throw new Error(errData.message || `Save failed (status ${putRes.status}).`);
+      }
+
+      history = latest;
+      updateMonthlyTotal();
+      setStatus(`${isUpdate ? 'Updated' : 'Saved'} — ${formatDateShort(date)}`, false, true);
+    } catch (err) {
+      setStatus(err.message || 'Save failed.', true);
+    } finally {
+      saveBtn.disabled = false;
+    }
+  });
+
+  recalc();
+  loadHistory();
 </script>
 
 </body>
