@@ -46,6 +46,13 @@
   }
 
   h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; margin: 0; }
+  .storage-warning {
+    margin: 3px 0 0;
+    color: var(--error);
+    font-size: 0.68rem;
+    font-weight: 600;
+    line-height: 1.3;
+  }
   .date-controls {
     display: flex;
     align-items: center;
@@ -185,6 +192,123 @@
     font-variant-numeric: tabular-nums;
   }
 
+  .monthly-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .clear-month-btn {
+    color: var(--error);
+    border-color: var(--error);
+    margin-top: 0;
+    white-space: nowrap;
+  }
+
+  .report-btn {
+    width: 100%;
+    margin-top: 14px;
+  }
+
+  .report-screen[hidden] { display: none; }
+  .report-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    overflow-y: auto;
+    background: var(--paper);
+  }
+  body.report-open { overflow: hidden; }
+  .report-page {
+    width: min(100%, 680px);
+    min-height: 100%;
+    margin: 0 auto;
+    padding: 18px 14px 28px;
+    background: var(--surface);
+  }
+  .report-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 22px;
+  }
+  .report-close {
+    margin-top: 0;
+  }
+  .report-kicker {
+    margin: 0 0 4px;
+    color: var(--ink-soft);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .report-title {
+    margin: 0;
+    font-size: 1.5rem;
+  }
+  .report-total-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 0 18px;
+    border-bottom: 2px solid var(--accent);
+  }
+  .report-total-label {
+    color: var(--ink-soft);
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+  .report-total-value {
+    color: var(--accent);
+    font-size: 2rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .report-table-wrap {
+    overflow-x: auto;
+    margin-top: 18px;
+  }
+  .report-table {
+    width: 100%;
+    table-layout: fixed;
+    border-radius: 6px;
+    font-size: 0.78rem;
+  }
+  .report-table th:nth-child(1) { width: 17%; }
+  .report-table th:nth-child(2) { width: 43%; }
+  .report-table th:nth-child(3) { width: 14%; }
+  .report-table th:nth-child(4) { width: 26%; }
+  .report-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 8px 7px;
+    white-space: nowrap;
+  }
+  .report-table tbody td {
+    padding: 7px;
+    font-size: 0.78rem;
+    overflow-wrap: anywhere;
+  }
+  .report-table td.report-number {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .report-table tr.report-day-total td {
+    border-top: 1px solid var(--line);
+    background: var(--accent-soft);
+    font-weight: 700;
+  }
+  .report-empty {
+    padding: 22px 8px;
+    color: var(--ink-soft);
+    text-align: center;
+  }
+
   .save-btn {
     width: 100%;
     font-family: inherit;
@@ -269,7 +393,10 @@
 
 <div class="wrap">
   <header>
-    <h1>RVU Tracker</h1>
+    <div>
+      <h1>RVU Tracker</h1>
+      <p class="storage-warning">Do not clear browser cookies or data.<br>Do not use incognito mode.</p>
+    </div>
     <div class="date-controls">
       <span id="today"></span>
       <input id="date-picker" type="date" aria-label="Select date">
@@ -336,15 +463,49 @@
   </section>
 
   <section id="monthly-section">
-    <p class="section-title">Monthly total</p>
+    <div class="monthly-heading">
+      <p class="section-title">Monthly total</p>
+      <button class="reset-btn clear-month-btn" id="clear-month-btn" type="button">Clear monthly total</button>
+    </div>
     <p class="section-sub" id="monthly-label-month">&nbsp;</p>
     <div class="monthly-value" id="monthly-total">0.00</div>
+      <button class="reset-btn report-btn" id="current-monthly-report-btn" type="button">View current monthly report</button>
+      <button class="reset-btn report-btn" id="previous-monthly-report-btn" type="button">View last monthly report</button>
   </section>
 
   <section id="save-section">
     <button id="save-btn" class="save-btn">Save today's total</button>
     <p id="save-status" class="save-status">Not saved yet</p>
   </section>
+</div>
+
+<div class="report-screen" id="monthly-report" hidden>
+  <div class="report-page">
+    <div class="report-toolbar">
+      <div>
+        <p class="report-kicker">RVU report</p>
+        <h2 class="report-title" id="report-month-label">Monthly report</h2>
+      </div>
+      <button class="reset-btn report-close" id="close-report-btn" type="button">Close</button>
+    </div>
+    <div class="report-total-row">
+      <span class="report-total-label">Monthly RVU total</span>
+      <span class="report-total-value" id="report-month-total">0.00</span>
+    </div>
+    <div class="report-table-wrap">
+      <table class="report-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Procedure</th>
+            <th class="num">#</th>
+            <th class="num">Procedure RVU</th>
+          </tr>
+        </thead>
+        <tbody id="report-body"></tbody>
+      </table>
+    </div>
+  </div>
 </div>
 
 <div class="totalbar">
@@ -856,16 +1017,165 @@
 
   setSelectedDate(todayISO());
 
+  function currentMonthKey() {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  }
+
+    function previousMonthKey() {
+      const now = new Date();
+      const previous = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      return `${previous.getFullYear()}-${String(previous.getMonth()+1).padStart(2,'0')}`;
+    }
+
   function updateMonthlyTotal() {
     const now = new Date();
-    const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    const ym = currentMonthKey();
     const monthEntries = history.filter(e => e && e.date && e.date.startsWith(ym));
     const sum = monthEntries.reduce((acc, e) => acc + (Number(e.total) || 0), 0);
-    document.getElementById('monthly-total').textContent = sum.toFixed(2);
-    document.getElementById('footer-monthly-total').textContent = sum.toFixed(2);
-    document.getElementById('monthly-label-month').textContent =
-      now.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    const monthlyValue = document.getElementById('monthly-total');
+    const monthlyLabel = document.getElementById('monthly-label-month');
+    if (monthlyValue) monthlyValue.textContent = sum.toFixed(2);
+    if (monthlyLabel) {
+      monthlyLabel.textContent = now.toLocaleDateString(undefined, {
+        month: 'long',
+        year: 'numeric'
+      });
+    }
   }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function renderMonthlyReport(monthKey) {
+    const monthDate = new Date(`${monthKey}-01T12:00:00`);
+    const monthLabel = monthDate.toLocaleDateString(undefined, {
+      month: 'long',
+      year: 'numeric'
+    });
+    const monthEntries = history.filter(entry => entry && entry.date && entry.date.startsWith(monthKey));
+    const monthTotal = monthEntries.reduce((sum, entry) => sum + (Number(entry.total) || 0), 0);
+    const reportMonthLabel = document.getElementById('report-month-label');
+    const reportMonthTotal = document.getElementById('report-month-total');
+    const reportBody = document.getElementById('report-body');
+    if (!reportMonthLabel || !reportMonthTotal || !reportBody) return;
+
+    reportMonthLabel.textContent = monthLabel;
+    reportMonthTotal.textContent = monthTotal.toFixed(2);
+
+    const rows = [];
+    Object.keys(dailyData)
+      .filter(date => date.startsWith(monthKey))
+      .sort()
+      .forEach(date => {
+        const dayEntry = dailyData[date];
+        const historyEntry = monthEntries.find(entry => entry.date === date);
+        const dayTotal = Number(dayEntry?.total ?? historyEntry?.total) || 0;
+        const procedures = Array.isArray(dayEntry?.procedures) ? dayEntry.procedures : [];
+        let dayHasProcedures = false;
+
+        procedures.forEach(procedure => {
+          const count = Number(procedure?.count) || 0;
+          const rvu = Number(procedure?.rvu) || 0;
+          if (count <= 0) return;
+          dayHasProcedures = true;
+          rows.push({
+            date,
+            name: procedure?.name || 'Unnamed procedure',
+            count,
+            total: rvu * count
+          });
+        });
+
+        if (dayHasProcedures) {
+          rows.push({ date, isDayTotal: true, dayTotal });
+        }
+      });
+
+    reportBody.innerHTML = rows.length
+      ? rows.map(row => row.isDayTotal ? `
+          <tr class="report-day-total">
+            <td>${escapeHtml(formatDateShort(row.date))}</td>
+            <td>TOTAL</td>
+            <td></td>
+            <td class="report-number">${row.dayTotal.toFixed(2)}</td>
+          </tr>` : `
+          <tr>
+            <td>${escapeHtml(formatDateShort(row.date))}</td>
+            <td>${escapeHtml(row.name)}</td>
+            <td class="report-number">${row.count}</td>
+            <td class="report-number">${row.total.toFixed(2)}</td>
+          </tr>`).join('')
+      : '<tr><td class="report-empty" colspan="4">No saved procedures for this month.</td></tr>';
+  }
+
+  function openMonthlyReport(monthKey) {
+    renderMonthlyReport(monthKey);
+    document.getElementById('monthly-report').hidden = false;
+    document.body.classList.add('report-open');
+  }
+
+  document.getElementById('current-monthly-report-btn').addEventListener('click', () => {
+    openMonthlyReport(currentMonthKey());
+  });
+
+  document.getElementById('previous-monthly-report-btn').addEventListener('click', () => {
+    openMonthlyReport(previousMonthKey());
+  });
+
+  function closeMonthlyReport() {
+    document.getElementById('monthly-report').hidden = true;
+    document.body.classList.remove('report-open');
+  }
+
+  document.getElementById('close-report-btn').addEventListener('click', closeMonthlyReport);
+  document.getElementById('monthly-report').addEventListener('click', event => {
+    if (event.target.id === 'monthly-report') closeMonthlyReport();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !document.getElementById('monthly-report').hidden) {
+      closeMonthlyReport();
+    }
+  });
+
+  document.getElementById('clear-month-btn').addEventListener('click', () => {
+    const monthKey = currentMonthKey();
+    const monthLabel = new Date(`${monthKey}-01T12:00:00`).toLocaleDateString(undefined, {
+      month: 'long',
+      year: 'numeric'
+    });
+    const confirmClear = window.confirm(`Are you sure you want to clear all saved days in ${monthLabel}?`);
+    if (!confirmClear) return;
+
+    const previousHistory = history;
+    const previousDailyData = dailyData;
+    history = history.filter(entry => !entry || !entry.date || !entry.date.startsWith(monthKey));
+    dailyData = { ...dailyData };
+    Object.keys(dailyData).forEach(date => {
+      if (date.startsWith(monthKey)) delete dailyData[date];
+    });
+
+    try {
+      localStorage.setItem(DAILY_DATA_KEY, JSON.stringify(dailyData));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+      if (selectedDate.startsWith(monthKey)) {
+        document.querySelectorAll('input.count').forEach(input => input.value = '');
+        recalc();
+      }
+      updateMonthlyTotal();
+      setStatus(`Cleared — ${monthLabel}`, false, true);
+    } catch (error) {
+      history = previousHistory;
+      dailyData = previousDailyData;
+      setStatus('Could not clear the month — storage may be blocked.', true);
+    }
+  });
 
   function loadHistory() {
     try {
