@@ -19,7 +19,6 @@
     --accent-soft: #E4EDE9;
     --accent-ink: #FFFFFF;
     --error: #A6432E;
-    --error-soft: #F3E4E0;
   }
 
   * { box-sizing: border-box; }
@@ -35,11 +34,7 @@
 
   body { padding-bottom: 92px; }
 
-  .wrap {
-    max-width: 640px;
-    margin: 0 auto;
-    padding: 20px 14px 8px;
-  }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 20px 14px 8px; }
 
   header {
     display: flex;
@@ -135,34 +130,13 @@
     border-top: 2px solid var(--line);
     background: var(--accent-soft);
   }
-  tfoot td.total {
-    font-size: 1.05rem;
-    font-weight: 700;
-    color: var(--accent);
-  }
+  tfoot td.total { font-size: 1.05rem; font-weight: 700; color: var(--accent); }
 
   .monthly-value {
     font-size: 1.9rem;
     font-weight: 700;
     color: var(--accent);
     font-variant-numeric: tabular-nums;
-  }
-
-  .token-input {
-    width: 100%;
-    font-family: inherit;
-    font-size: 16px; /* prevents iOS auto-zoom */
-    padding: 12px 10px;
-    border: 1px solid var(--line);
-    border-radius: 7px;
-    background: var(--surface);
-    color: var(--ink);
-    margin-bottom: 10px;
-  }
-  .token-input:focus {
-    outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-soft);
   }
 
   .save-btn {
@@ -177,7 +151,6 @@
     color: var(--accent-ink);
   }
   .save-btn:active { opacity: 0.85; }
-  .save-btn:disabled { opacity: 0.6; }
 
   .save-status {
     font-size: 0.85rem;
@@ -219,9 +192,7 @@
     <p class="section-title">Office</p>
     <p class="section-sub">Visit counts — not included in RVU total</p>
     <table>
-      <thead>
-        <tr><th>Name</th><th class="num">Count</th></tr>
-      </thead>
+      <thead><tr><th>Name</th><th class="num">Count</th></tr></thead>
       <tbody id="office-body"></tbody>
     </table>
   </section>
@@ -256,9 +227,6 @@
   </section>
 
   <section id="save-section">
-    <label for="gh-token" class="section-title" style="display:block;">GitHub token</label>
-    <p class="section-sub">Needed only when you tap Save &middot; not stored once you leave the page</p>
-    <input type="password" id="gh-token" placeholder="ghp_..." autocomplete="off" class="token-input">
     <button id="save-btn" class="save-btn">Save today's total</button>
     <p id="save-status" class="save-status">Not saved yet</p>
   </section>
@@ -270,11 +238,7 @@
 </div>
 
 <script>
-  const GITHUB_OWNER = 'Appothecary';
-  const GITHUB_REPO = 'rvu-tracker';
-  const FILE_PATH = 'rvu-log.json';
-  const BRANCH = 'main';
-
+  const STORAGE_KEY = 'rvuTrackerHistory';
   let history = [];
 
   const officeRows = [
@@ -390,10 +354,10 @@
       now.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
   }
 
-  async function loadHistory() {
+  function loadHistory() {
     try {
-      const res = await fetch('./' + FILE_PATH, { cache: 'no-store' });
-      history = res.ok ? await res.json() : [];
+      const raw = localStorage.getItem(STORAGE_KEY);
+      history = raw ? JSON.parse(raw) : [];
       if (!Array.isArray(history)) history = [];
     } catch (e) {
       history = [];
@@ -401,89 +365,21 @@
     updateMonthlyTotal();
   }
 
-  function base64EncodeUtf8(str) {
-    return btoa(unescape(encodeURIComponent(str)));
-  }
-  function base64DecodeUtf8(str) {
-    return decodeURIComponent(escape(atob(str.replace(/\n/g, ''))));
-  }
-
-  const saveBtn = document.getElementById('save-btn');
-  saveBtn.addEventListener('click', async () => {
-    const tokenInput = document.getElementById('gh-token');
-    const token = tokenInput.value.trim();
-    if (!token) {
-      setStatus('Enter your GitHub token to save.', true);
-      tokenInput.focus();
-      return;
-    }
-
+  document.getElementById('save-btn').addEventListener('click', () => {
     const grand = parseFloat(document.getElementById('grand-total').textContent);
     const date = todayISO();
-    setStatus('Saving…');
-    saveBtn.disabled = true;
+    const idx = history.findIndex(e => e.date === date);
+    const entry = { date, total: Math.round(grand * 100) / 100 };
+    const isUpdate = idx >= 0;
+    if (isUpdate) { history[idx] = entry; } else { history.push(entry); }
+    history.sort((a, b) => a.date.localeCompare(b.date));
 
     try {
-      let sha = null;
-      let latest = [];
-
-      const getRes = await fetch(
-        `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${FILE_PATH}?ref=${BRANCH}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      if (getRes.status === 200) {
-        const data = await getRes.json();
-        sha = data.sha;
-        latest = JSON.parse(base64DecodeUtf8(data.content));
-        if (!Array.isArray(latest)) latest = [];
-      } else if (getRes.status === 404) {
-        sha = null;
-        latest = [];
-      } else if (getRes.status === 401 || getRes.status === 403) {
-        throw new Error('Token was rejected — check it has write access to this repo.');
-      } else {
-        throw new Error(`Could not read current file (status ${getRes.status}).`);
-      }
-
-      const idx = latest.findIndex(e => e.date === date);
-      const entry = { date, total: Math.round(grand * 100) / 100 };
-      const isUpdate = idx >= 0;
-      if (isUpdate) { latest[idx] = entry; } else { latest.push(entry); }
-      latest.sort((a, b) => a.date.localeCompare(b.date));
-
-      const contentStr = JSON.stringify(latest, null, 2);
-      const putBody = {
-        message: isUpdate ? `Update RVU total for ${date}` : `Add RVU total for ${date}`,
-        content: base64EncodeUtf8(contentStr),
-        branch: BRANCH
-      };
-      if (sha) putBody.sha = sha;
-
-      const putRes = await fetch(
-        `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${FILE_PATH}`,
-        {
-          method: 'PUT',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(putBody)
-        }
-      );
-
-      if (!putRes.ok) {
-        const errData = await putRes.json().catch(() => ({}));
-        throw new Error(errData.message || `Save failed (status ${putRes.status}).`);
-      }
-
-      history = latest;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
       updateMonthlyTotal();
       setStatus(`${isUpdate ? 'Updated' : 'Saved'} — ${formatDateShort(date)}`, false, true);
-    } catch (err) {
-      setStatus(err.message || 'Save failed.', true);
-    } finally {
-      saveBtn.disabled = false;
+    } catch (e) {
+      setStatus('Could not save — storage may be full or blocked.', true);
     }
   });
 
